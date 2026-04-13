@@ -5,7 +5,7 @@ Personal [agentskills.io](https://agentskills.io) skills collection. Compatible 
 ## Install
 
 ```bash
-npx skills add quydoan/myskills
+npx skills add RobDoan/myskills
 ```
 
 ## Add a New Skill
@@ -54,7 +54,7 @@ A weekly GitHub Action checks for changes and creates issues with compare links.
 To check manually:
 
 ```bash
-GITHUB_TOKEN=your_token GITHUB_REPOSITORY=quydoan/myskills npm run check-upstream
+GITHUB_TOKEN=your_token GITHUB_REPOSITORY=RobDoan/myskills npm run check-upstream
 ```
 
 ## Development
