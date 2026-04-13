@@ -1,0 +1,7 @@
+repos:
+  - name: anthropics-skills
+    url: https://github.com/anthropics/skills
+    branch: main
+  - name: vercel-agent-skills
+    url: https://github.com/vercel-labs/agent-skills
+    branch: main

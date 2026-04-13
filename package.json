@@ -1,0 +1,17 @@
+{
+  "name": "myskills",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal agentskills.io skills collection with upstream tracking",
+  "scripts": {
+    "validate": "node scripts/validate.js",
+    "check-upstream": "node scripts/check-upstream.js",
+    "test": "node --test tests/"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/rest": "^22.0.1",
+    "yaml": "^2.8.3"
+  }
+}
