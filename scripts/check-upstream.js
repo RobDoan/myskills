@@ -133,11 +133,12 @@ if (isMain) {
     });
   }
 
-  if (hasChanges) {
-    const lockContent = stringifyYaml({ repos: updatedLockRepos });
-    await fs.writeFile(lockPath, lockContent);
-    console.log("Updated skill-repos.lock.yml");
-  } else {
+  // Always write lock file to update checked_at timestamps
+  const lockContent = stringifyYaml({ repos: updatedLockRepos });
+  await fs.writeFile(lockPath, lockContent);
+  console.log("Updated skill-repos.lock.yml");
+
+  if (!hasChanges) {
     console.log("No upstream changes detected.");
   }
 }
