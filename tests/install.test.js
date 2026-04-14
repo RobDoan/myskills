@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { parseLockFileYaml, extractOwnerRepo, resolveLockFileContent } from "../lib/install.js";
+import { parseLockFileYaml, extractOwnerRepo, resolveLockFileContent, installSkillRepos } from "../lib/install.js";
 
 describe("parseLockFileYaml", () => {
   it("parses valid lock file YAML and returns repo list", () => {
@@ -96,5 +96,66 @@ describe("resolveLockFileContent", () => {
     );
 
     await fs.rm(tmpDir, { recursive: true });
+  });
+});
+
+describe("installSkillRepos", () => {
+  it("runs npx skills add for each repo then RobDoan/myskills", async () => {
+    const calls = [];
+    const mockExec = async (cmd, args) => {
+      calls.push({ cmd, args });
+    };
+
+    const repos = [
+      { name: "anthropics-skills", url: "https://github.com/anthropics/skills" },
+      { name: "vercel-agent-skills", url: "https://github.com/vercel-labs/agent-skills" },
+    ];
+
+    const result = await installSkillRepos(repos, { global: false, execFn: mockExec });
+
+    assert.equal(calls.length, 3);
+    assert.deepEqual(calls[0].args, ["skills", "add", "anthropics/skills"]);
+    assert.deepEqual(calls[1].args, ["skills", "add", "vercel-labs/agent-skills"]);
+    assert.deepEqual(calls[2].args, ["skills", "add", "RobDoan/myskills"]);
+    assert.equal(result.installed, 3);
+    assert.equal(result.failed, 0);
+  });
+
+  it("passes -g flag when global is true", async () => {
+    const calls = [];
+    const mockExec = async (cmd, args) => {
+      calls.push({ cmd, args });
+    };
+
+    const repos = [
+      { name: "anthropics-skills", url: "https://github.com/anthropics/skills" },
+    ];
+
+    await installSkillRepos(repos, { global: true, execFn: mockExec });
+
+    assert.deepEqual(calls[0].args, ["skills", "add", "-g", "anthropics/skills"]);
+    assert.deepEqual(calls[1].args, ["skills", "add", "-g", "RobDoan/myskills"]);
+  });
+
+  it("continues after a failed install and reports failure", async () => {
+    const calls = [];
+    const mockExec = async (cmd, args) => {
+      calls.push({ cmd, args });
+      if (args.includes("anthropics/skills")) {
+        throw new Error("install failed");
+      }
+    };
+
+    const repos = [
+      { name: "anthropics-skills", url: "https://github.com/anthropics/skills" },
+      { name: "vercel-agent-skills", url: "https://github.com/vercel-labs/agent-skills" },
+    ];
+
+    const result = await installSkillRepos(repos, { global: false, execFn: mockExec });
+
+    assert.equal(calls.length, 3);
+    assert.equal(result.installed, 2);
+    assert.equal(result.failed, 1);
+    assert.deepEqual(result.failures, ["anthropics/skills"]);
   });
 });
