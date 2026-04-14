@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { parseConfigYaml, extractOwnerRepo, resolveConfigContent, installSkillRepos, parseArgs, buildAddArgs, resolveActiveScopes } from "../lib/install.js";
+import { parseConfigYaml, extractOwnerRepo, resolveConfigContent, installSkillRepos, parseArgs, buildAddArgs, resolveActiveScopes, collectRepoEntries } from "../lib/install.js";
 
 describe("parseConfigYaml", () => {
   it("parses scoped config and returns scope map", () => {
@@ -314,6 +314,45 @@ describe("resolveActiveScopes", () => {
       () => resolveActiveScopes(scopeMap, ["mobile", "devops"]),
       /Unknown scope\(s\): mobile, devops/
     );
+  });
+});
+
+describe("collectRepoEntries", () => {
+  it("merges skills for same url across scopes", () => {
+    const scopeMap = {
+      default: [{ url: "anthropics/skills", skills: ["pr-review", "commit"] }],
+      frontend: [{ url: "anthropics/skills", skills: ["frontend-design"] }],
+    };
+    const entries = collectRepoEntries(scopeMap, ["default", "frontend"]);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].url, "anthropics/skills");
+    assert.deepEqual(entries[0].skills, ["pr-review", "commit", "frontend-design"]);
+  });
+
+  it("deduplicates skills within merged entries", () => {
+    const scopeMap = {
+      default: [{ url: "anthropics/skills", skills: ["pr-review"] }],
+      frontend: [{ url: "anthropics/skills", skills: ["pr-review", "frontend-design"] }],
+    };
+    const entries = collectRepoEntries(scopeMap, ["default", "frontend"]);
+    assert.deepEqual(entries[0].skills, ["pr-review", "frontend-design"]);
+  });
+
+  it("returns multiple repos when urls differ", () => {
+    const scopeMap = {
+      default: [
+        { url: "anthropics/skills", skills: ["pr-review"] },
+        { url: "vercel-labs/agent-skills", skills: ["best-practices"] },
+      ],
+    };
+    const entries = collectRepoEntries(scopeMap, ["default"]);
+    assert.equal(entries.length, 2);
+  });
+
+  it("returns empty array for empty scopes", () => {
+    const scopeMap = { default: [], frontend: [] };
+    const entries = collectRepoEntries(scopeMap, ["default", "frontend"]);
+    assert.equal(entries.length, 0);
   });
 });
 
