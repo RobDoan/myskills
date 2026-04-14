@@ -215,4 +215,15 @@ describe("parseArgs", () => {
     const result = parseArgs(["node", "myskills", "unknown"]);
     assert.equal(result.command, null);
   });
+
+  it("parses add command with repo argument", () => {
+    const result = parseArgs(["node", "myskills", "add", "someuser/somerepo"]);
+    assert.equal(result.command, "add");
+    assert.equal(result.repo, "someuser/somerepo");
+  });
+
+  it("returns null command for add without repo argument", () => {
+    const result = parseArgs(["node", "myskills", "add"]);
+    assert.equal(result.command, null);
+  });
 });
