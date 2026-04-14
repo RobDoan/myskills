@@ -1,1 +1,11 @@
-repos: []
+repos:
+  - name: anthropics-skills
+    url: https://github.com/anthropics/skills
+    branch: main
+    sha: 0f7c287eaf0d4fa511cb871bb55e2a7862251fbb
+    checked_at: 2026-04-14T05:39:07.164Z
+  - name: vercel-agent-skills
+    url: https://github.com/vercel-labs/agent-skills
+    branch: main
+    sha: 73140fc5b3a214ad3222bcf557b397b3c02d11c1
+    checked_at: 2026-04-14T05:39:07.275Z
