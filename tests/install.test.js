@@ -3,30 +3,47 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { parseConfigYaml, extractOwnerRepo, resolveConfigContent, installSkillRepos, parseArgs, addRepoToConfig, saveConfigFile, buildAddArgs } from "../lib/install.js";
+import { parseConfigYaml, extractOwnerRepo, resolveConfigContent, installSkillRepos, parseArgs, buildAddArgs } from "../lib/install.js";
 
 describe("parseConfigYaml", () => {
-  it("parses valid config YAML and returns repo list", () => {
-    const yaml = `repos:
-  - name: anthropics-skills
-    url: https://github.com/anthropics/skills
-    branch: main
-    sha: abc123
-    checked_at: 2026-04-14T00:00:00.000Z
-  - name: vercel-agent-skills
-    url: https://github.com/vercel-labs/agent-skills
-    branch: main
-    sha: def456
-    checked_at: 2026-04-14T00:00:00.000Z
+  it("parses scoped config and returns scope map", () => {
+    const yaml = `default:
+  - url: anthropics/skills
+    skills: [pr-review, commit]
+
+frontend:
+  - url: anthropics/skills
+    skills: [frontend-design]
 `;
-    const repos = parseConfigYaml(yaml);
-    assert.equal(repos.length, 2);
-    assert.equal(repos[0].url, "https://github.com/anthropics/skills");
-    assert.equal(repos[1].url, "https://github.com/vercel-labs/agent-skills");
+    const scopeMap = parseConfigYaml(yaml);
+    assert.deepEqual(Object.keys(scopeMap), ["default", "frontend"]);
+    assert.equal(scopeMap.default.length, 1);
+    assert.equal(scopeMap.default[0].url, "anthropics/skills");
+    assert.deepEqual(scopeMap.default[0].skills, ["pr-review", "commit"]);
+    assert.equal(scopeMap.frontend.length, 1);
+    assert.deepEqual(scopeMap.frontend[0].skills, ["frontend-design"]);
   });
 
-  it("throws on invalid YAML with no repos key", () => {
-    assert.throws(() => parseConfigYaml("not: valid"), /repos/);
+  it("throws when default scope is missing", () => {
+    const yaml = `frontend:
+  - url: anthropics/skills
+    skills: [frontend-design]
+`;
+    assert.throws(() => parseConfigYaml(yaml), /missing required 'default' scope/);
+  });
+
+  it("throws when config has no scope keys", () => {
+    assert.throws(() => parseConfigYaml(""), /no scopes defined/);
+  });
+
+  it("accepts empty scope arrays", () => {
+    const yaml = `default:
+  - url: anthropics/skills
+    skills: [pr-review]
+frontend: []
+`;
+    const scopeMap = parseConfigYaml(yaml);
+    assert.deepEqual(scopeMap.frontend, []);
   });
 });
 
@@ -216,62 +233,6 @@ describe("parseArgs", () => {
     assert.equal(result.command, null);
   });
 
-  it("parses add command with repo argument", () => {
-    const result = parseArgs(["node", "myskills", "add", "someuser/somerepo"]);
-    assert.equal(result.command, "add");
-    assert.equal(result.repo, "someuser/somerepo");
-  });
-
-  it("returns null command for add without repo argument", () => {
-    const result = parseArgs(["node", "myskills", "add"]);
-    assert.equal(result.command, null);
-  });
-});
-
-describe("addRepoToConfig", () => {
-  it("appends a new repo entry to config YAML", () => {
-    const input = `repos:
-  - name: anthropics-skills
-    url: https://github.com/anthropics/skills
-`;
-    const result = addRepoToConfig(input, "someuser/somerepo");
-    const parsed = parseConfigYaml(result);
-    assert.equal(parsed.length, 2);
-    assert.equal(parsed[1].name, "someuser-somerepo");
-    assert.equal(parsed[1].url, "https://github.com/someuser/somerepo");
-  });
-
-  it("returns null when repo already exists in config", () => {
-    const input = `repos:
-  - name: anthropics-skills
-    url: https://github.com/anthropics/skills
-`;
-    const result = addRepoToConfig(input, "anthropics/skills");
-    assert.equal(result, null);
-  });
-
-  it("works with empty repos list", () => {
-    const input = `repos: []\n`;
-    const result = addRepoToConfig(input, "someuser/somerepo");
-    const parsed = parseConfigYaml(result);
-    assert.equal(parsed.length, 1);
-    assert.equal(parsed[0].name, "someuser-somerepo");
-    assert.equal(parsed[0].url, "https://github.com/someuser/somerepo");
-  });
-});
-
-describe("saveConfigFile", () => {
-  it("writes config content to skill-repos.yml in given directory", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "myskills-"));
-    const content = `repos:\n  - name: test\n    url: https://github.com/test/repo\n`;
-
-    await saveConfigFile(tmpDir, content);
-
-    const written = await fs.readFile(path.join(tmpDir, "skill-repos.yml"), "utf-8");
-    assert.equal(written, content);
-
-    await fs.rm(tmpDir, { recursive: true });
-  });
 });
 
 describe("buildAddArgs", () => {
