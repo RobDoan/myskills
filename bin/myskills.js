@@ -1,15 +1,12 @@
 #!/usr/bin/env node
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { spawn } from "node:child_process";
 import {
   parseArgs,
   resolveLockFileContent,
   parseLockFileYaml,
   installSkillRepos,
 } from "../lib/install.js";
-
-const execFileAsync = promisify(execFile);
 
 const USAGE = `Usage: myskills install [-g]
 
@@ -37,9 +34,14 @@ try {
 
   const repos = parseLockFileYaml(content);
 
-  const execFn = async (cmd, args) => {
-    await execFileAsync(cmd, args, { stdio: "inherit" });
-  };
+  const execFn = (cmd, args) =>
+    new Promise((resolve, reject) => {
+      const child = spawn(cmd, args, { stdio: "inherit" });
+      child.on("close", (code) =>
+        code === 0 ? resolve() : reject(new Error(`Exit code ${code}`))
+      );
+      child.on("error", reject);
+    });
 
   const result = await installSkillRepos(repos, {
     global: isGlobal,
