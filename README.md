@@ -10,12 +10,24 @@ Personal [agentskills.io](https://agentskills.io) skills collection. Compatible 
 npx skills add RobDoan/myskills
 ```
 
-Or install the CLI from npm:
+Or install all tracked skill repos at once using the CLI:
 
 ```bash
-npm install -g @quydoan/myskills
-myskills install
+npx @quydoan/myskills install        # project-level (-p)
+npx @quydoan/myskills install -g     # global
 ```
+
+### Add a new skill repo
+
+```bash
+npx @quydoan/myskills add owner/repo
+```
+
+This will:
+1. Download `skill-repos.yml` (if no local copy exists)
+2. Install all existing tracked repos
+3. Install the new repo
+4. Append it to your local `skill-repos.yml`
 
 ## Add a New Skill
 
@@ -56,7 +68,12 @@ repos:
   - name: repo-name
     url: https://github.com/owner/repo
     branch: main
+    skills:            # optional: auto-select specific skills during install
+      - pr-review
+      - commit
 ```
+
+When a `skills` array is present, `myskills install` passes `--skill <names>` to `npx skills add` so you don't have to manually select them each time.
 
 A weekly GitHub Action checks for changes and creates issues with compare links.
 

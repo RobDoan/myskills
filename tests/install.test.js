@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { parseConfigYaml, extractOwnerRepo, resolveConfigContent, installSkillRepos, parseArgs, addRepoToConfig, saveConfigFile } from "../lib/install.js";
+import { parseConfigYaml, extractOwnerRepo, resolveConfigContent, installSkillRepos, parseArgs, addRepoToConfig, saveConfigFile, buildAddArgs } from "../lib/install.js";
 
 describe("parseConfigYaml", () => {
   it("parses valid config YAML and returns repo list", () => {
@@ -271,5 +271,65 @@ describe("saveConfigFile", () => {
     assert.equal(written, content);
 
     await fs.rm(tmpDir, { recursive: true });
+  });
+});
+
+describe("buildAddArgs", () => {
+  it("builds args with -p for non-global", () => {
+    const args = buildAddArgs("owner/repo");
+    assert.deepEqual(args, ["skills", "add", "-p", "owner/repo"]);
+  });
+
+  it("builds args with -g for global", () => {
+    const args = buildAddArgs("owner/repo", { global: true });
+    assert.deepEqual(args, ["skills", "add", "-g", "owner/repo"]);
+  });
+
+  it("appends --skill with skill names when skills provided", () => {
+    const args = buildAddArgs("owner/repo", { skills: ["pr-review", "commit"] });
+    assert.deepEqual(args, ["skills", "add", "-p", "owner/repo", "--skill", "pr-review", "commit"]);
+  });
+
+  it("appends --skill with -g when global and skills provided", () => {
+    const args = buildAddArgs("owner/repo", { global: true, skills: ["pr-review"] });
+    assert.deepEqual(args, ["skills", "add", "-g", "owner/repo", "--skill", "pr-review"]);
+  });
+
+  it("does not append --skill when skills array is empty", () => {
+    const args = buildAddArgs("owner/repo", { skills: [] });
+    assert.deepEqual(args, ["skills", "add", "-p", "owner/repo"]);
+  });
+});
+
+describe("installSkillRepos with skills", () => {
+  it("passes --skill args when repo has skills array", async () => {
+    const calls = [];
+    const mockExec = async (cmd, args) => {
+      calls.push({ cmd, args });
+    };
+
+    const repos = [
+      { name: "anthropics-skills", url: "https://github.com/anthropics/skills", skills: ["pr-review", "commit"] },
+    ];
+
+    await installSkillRepos(repos, { global: false, execFn: mockExec });
+
+    assert.deepEqual(calls[0].args, ["skills", "add", "-p", "anthropics/skills", "--skill", "pr-review", "commit"]);
+    assert.deepEqual(calls[1].args, ["skills", "add", "-p", "RobDoan/myskills"]);
+  });
+
+  it("does not pass --skill when repo has no skills array", async () => {
+    const calls = [];
+    const mockExec = async (cmd, args) => {
+      calls.push({ cmd, args });
+    };
+
+    const repos = [
+      { name: "anthropics-skills", url: "https://github.com/anthropics/skills" },
+    ];
+
+    await installSkillRepos(repos, { global: false, execFn: mockExec });
+
+    assert.deepEqual(calls[0].args, ["skills", "add", "-p", "anthropics/skills"]);
   });
 });
