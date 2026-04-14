@@ -95,7 +95,7 @@ if (command === "install") {
     // Step 4: Install the new repo
     console.log(`Installing ${repo}...`);
     try {
-      await execFn("npx", ["skills", "add", repo]);
+      await execFn("npx", ["skills", "add", "-p", repo]);
     } catch {
       console.error(`Failed to install ${repo}. Config not updated.`);
       process.exit(1);

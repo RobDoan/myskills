@@ -1,4 +1,6 @@
-# MySkills
+# @quydoan/myskills
+
+[![npm version](https://img.shields.io/npm/v/@quydoan/myskills)](https://www.npmjs.com/package/@quydoan/myskills)
 
 Personal [agentskills.io](https://agentskills.io) skills collection. Compatible with Claude Code, Cursor, Gemini CLI, Copilot, and any agent supporting the agentskills.io spec.
 
@@ -6,6 +8,13 @@ Personal [agentskills.io](https://agentskills.io) skills collection. Compatible 
 
 ```bash
 npx skills add RobDoan/myskills
+```
+
+Or install the CLI from npm:
+
+```bash
+npm install -g @quydoan/myskills
+myskills install
 ```
 
 ## Add a New Skill
@@ -65,3 +74,11 @@ npm test       # run tests
 npm run validate        # validate all skills
 npm run check-upstream  # check upstream repos (requires GITHUB_TOKEN)
 ```
+
+## Releases
+
+This project uses [semantic-release](https://github.com/semantic-release/semantic-release) for automated versioning and publishing. Every push to `main` triggers a GitHub Actions workflow that:
+
+1. Analyzes commits using [Conventional Commits](https://www.conventionalcommits.org/) (`fix:` = patch, `feat:` = minor, `BREAKING CHANGE` = major)
+2. Publishes to [npm](https://www.npmjs.com/package/@quydoan/myskills)
+3. Creates a [GitHub Release](https://github.com/RobDoan/myskills/releases) with an auto-generated changelog

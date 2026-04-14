@@ -114,9 +114,9 @@ describe("installSkillRepos", () => {
     const result = await installSkillRepos(repos, { global: false, execFn: mockExec });
 
     assert.equal(calls.length, 3);
-    assert.deepEqual(calls[0].args, ["skills", "add", "anthropics/skills"]);
-    assert.deepEqual(calls[1].args, ["skills", "add", "vercel-labs/agent-skills"]);
-    assert.deepEqual(calls[2].args, ["skills", "add", "RobDoan/myskills"]);
+    assert.deepEqual(calls[0].args, ["skills", "add", "-p", "anthropics/skills"]);
+    assert.deepEqual(calls[1].args, ["skills", "add", "-p", "vercel-labs/agent-skills"]);
+    assert.deepEqual(calls[2].args, ["skills", "add", "-p", "RobDoan/myskills"]);
     assert.equal(result.installed, 3);
     assert.equal(result.failed, 0);
   });
