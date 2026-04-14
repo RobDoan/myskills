@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { parseLockFileYaml, extractOwnerRepo, resolveLockFileContent, installSkillRepos } from "../lib/install.js";
+import { parseLockFileYaml, extractOwnerRepo, resolveLockFileContent, installSkillRepos, parseArgs } from "../lib/install.js";
 
 describe("parseLockFileYaml", () => {
   it("parses valid lock file YAML and returns repo list", () => {
@@ -157,5 +157,29 @@ describe("installSkillRepos", () => {
     assert.equal(result.installed, 2);
     assert.equal(result.failed, 1);
     assert.deepEqual(result.failures, ["anthropics/skills"]);
+  });
+});
+
+describe("parseArgs", () => {
+  it("parses install command", () => {
+    const result = parseArgs(["node", "myskills", "install"]);
+    assert.equal(result.command, "install");
+    assert.equal(result.global, false);
+  });
+
+  it("parses install -g", () => {
+    const result = parseArgs(["node", "myskills", "install", "-g"]);
+    assert.equal(result.command, "install");
+    assert.equal(result.global, true);
+  });
+
+  it("returns null command for missing args", () => {
+    const result = parseArgs(["node", "myskills"]);
+    assert.equal(result.command, null);
+  });
+
+  it("returns null command for unknown command", () => {
+    const result = parseArgs(["node", "myskills", "unknown"]);
+    assert.equal(result.command, null);
   });
 });

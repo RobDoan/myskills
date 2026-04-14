@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "myskills": "bin/myskills.js"
+  },
   "description": "Personal agentskills.io skills collection with upstream tracking",
   "scripts": {
     "validate": "node scripts/validate.js",
