@@ -3,17 +3,16 @@
 import { spawn } from "node:child_process";
 import {
   parseArgs,
-  resolveLockFileContent,
-  parseLockFileYaml,
+  resolveConfigContent,
+  parseConfigYaml,
   installSkillRepos,
 } from "../lib/install.js";
 
-const USAGE = `Usage: myskills install [-g]
+const USAGE = `Usage: myskills <command>
 
-Install agentskills.io skill repos from skill-repos.lock.yml.
-
-Options:
-  -g    Install skills globally`;
+Commands:
+  install [-g]       Install skill repos from skill-repos.yml
+  add <repo>         Install all skills, add a new repo, and update config`;
 
 const { command, global: isGlobal } = parseArgs(process.argv);
 
@@ -24,15 +23,15 @@ if (command !== "install") {
 
 try {
   const cwd = process.cwd();
-  const { content, source } = await resolveLockFileContent(cwd);
+  const { content, source } = await resolveConfigContent(cwd);
 
   if (source === "local") {
-    console.log("Using local skill-repos.lock.yml");
+    console.log("Using local skill-repos.yml");
   } else {
-    console.log("Fetching skill-repos.lock.yml from RobDoan/myskills...");
+    console.log("Fetching skill-repos.yml from RobDoan/myskills...");
   }
 
-  const repos = parseLockFileYaml(content);
+  const repos = parseConfigYaml(content);
 
   const execFn = (cmd, args) =>
     new Promise((resolve, reject) => {

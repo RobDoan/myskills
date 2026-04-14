@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { parseLockFileYaml, extractOwnerRepo, resolveLockFileContent, installSkillRepos, parseArgs } from "../lib/install.js";
+import { parseConfigYaml, extractOwnerRepo, resolveConfigContent, installSkillRepos, parseArgs } from "../lib/install.js";
 
-describe("parseLockFileYaml", () => {
-  it("parses valid lock file YAML and returns repo list", () => {
+describe("parseConfigYaml", () => {
+  it("parses valid config YAML and returns repo list", () => {
     const yaml = `repos:
   - name: anthropics-skills
     url: https://github.com/anthropics/skills
@@ -19,14 +19,14 @@ describe("parseLockFileYaml", () => {
     sha: def456
     checked_at: 2026-04-14T00:00:00.000Z
 `;
-    const repos = parseLockFileYaml(yaml);
+    const repos = parseConfigYaml(yaml);
     assert.equal(repos.length, 2);
     assert.equal(repos[0].url, "https://github.com/anthropics/skills");
     assert.equal(repos[1].url, "https://github.com/vercel-labs/agent-skills");
   });
 
   it("throws on invalid YAML with no repos key", () => {
-    assert.throws(() => parseLockFileYaml("not: valid"), /repos/);
+    assert.throws(() => parseConfigYaml("not: valid"), /repos/);
   });
 });
 
@@ -50,7 +50,7 @@ describe("extractOwnerRepo", () => {
   });
 });
 
-const SAMPLE_LOCK_YAML = `repos:
+const SAMPLE_CONFIG_YAML = `repos:
   - name: anthropics-skills
     url: https://github.com/anthropics/skills
     branch: main
@@ -58,24 +58,24 @@ const SAMPLE_LOCK_YAML = `repos:
     checked_at: 2026-04-14T00:00:00.000Z
 `;
 
-describe("resolveLockFileContent", () => {
-  it("reads local skill-repos.lock.yml when present", async () => {
+describe("resolveConfigContent", () => {
+  it("reads local skill-repos.yml when present", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "myskills-"));
-    await fs.writeFile(path.join(tmpDir, "skill-repos.lock.yml"), SAMPLE_LOCK_YAML);
+    await fs.writeFile(path.join(tmpDir, "skill-repos.yml"), SAMPLE_CONFIG_YAML);
 
-    const { content, source } = await resolveLockFileContent(tmpDir);
+    const { content, source } = await resolveConfigContent(tmpDir);
     assert.equal(source, "local");
     assert.ok(content.includes("anthropics-skills"));
 
     await fs.rm(tmpDir, { recursive: true });
   });
 
-  it("fetches remote lock file when local is missing", async () => {
+  it("fetches remote config file when local is missing", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "myskills-"));
 
-    const { content, source } = await resolveLockFileContent(tmpDir, async () => ({
+    const { content, source } = await resolveConfigContent(tmpDir, async () => ({
       ok: true,
-      text: async () => SAMPLE_LOCK_YAML,
+      text: async () => SAMPLE_CONFIG_YAML,
     }));
     assert.equal(source, "remote");
     assert.ok(content.includes("anthropics-skills"));
@@ -88,7 +88,7 @@ describe("resolveLockFileContent", () => {
 
     await assert.rejects(
       () =>
-        resolveLockFileContent(tmpDir, async () => ({
+        resolveConfigContent(tmpDir, async () => ({
           ok: false,
           status: 404,
         })),
