@@ -215,12 +215,31 @@ describe("parseArgs", () => {
     const result = parseArgs(["node", "myskills", "install"]);
     assert.equal(result.command, "install");
     assert.equal(result.global, false);
+    assert.equal(result.scopes, null);
   });
 
   it("parses install -g", () => {
     const result = parseArgs(["node", "myskills", "install", "-g"]);
     assert.equal(result.command, "install");
     assert.equal(result.global, true);
+    assert.equal(result.scopes, null);
+  });
+
+  it("parses install -s with single scope", () => {
+    const result = parseArgs(["node", "myskills", "install", "-s", "frontend"]);
+    assert.equal(result.command, "install");
+    assert.deepEqual(result.scopes, ["frontend"]);
+  });
+
+  it("parses install -s with comma-separated scopes", () => {
+    const result = parseArgs(["node", "myskills", "install", "-s", "frontend,backend"]);
+    assert.deepEqual(result.scopes, ["frontend", "backend"]);
+  });
+
+  it("parses install -g -s combined", () => {
+    const result = parseArgs(["node", "myskills", "install", "-g", "-s", "frontend"]);
+    assert.equal(result.global, true);
+    assert.deepEqual(result.scopes, ["frontend"]);
   });
 
   it("returns null command for missing args", () => {
@@ -232,7 +251,6 @@ describe("parseArgs", () => {
     const result = parseArgs(["node", "myskills", "unknown"]);
     assert.equal(result.command, null);
   });
-
 });
 
 describe("buildAddArgs", () => {
