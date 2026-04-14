@@ -160,6 +160,39 @@ describe("installSkillRepos", () => {
   });
 });
 
+describe("installSkillRepos logging", () => {
+  it("logs each repo being installed", async () => {
+    const logs = [];
+    const mockExec = async () => {};
+    const mockLog = (msg) => logs.push(msg);
+
+    const repos = [
+      { name: "anthropics-skills", url: "https://github.com/anthropics/skills" },
+    ];
+
+    await installSkillRepos(repos, { global: false, execFn: mockExec, log: mockLog });
+
+    assert.ok(logs.some((l) => l.includes("anthropics/skills")));
+    assert.ok(logs.some((l) => l.includes("RobDoan/myskills")));
+  });
+
+  it("logs failure for failed repo", async () => {
+    const logs = [];
+    const mockExec = async (cmd, args) => {
+      if (args.includes("anthropics/skills")) throw new Error("fail");
+    };
+    const mockLog = (msg) => logs.push(msg);
+
+    const repos = [
+      { name: "anthropics-skills", url: "https://github.com/anthropics/skills" },
+    ];
+
+    await installSkillRepos(repos, { global: false, execFn: mockExec, log: mockLog });
+
+    assert.ok(logs.some((l) => l.includes("Failed") && l.includes("anthropics/skills")));
+  });
+});
+
 describe("parseArgs", () => {
   it("parses install command", () => {
     const result = parseArgs(["node", "myskills", "install"]);
