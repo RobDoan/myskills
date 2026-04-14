@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { parseConfigYaml, extractOwnerRepo, resolveConfigContent, installSkillRepos, parseArgs } from "../lib/install.js";
+import { parseConfigYaml, extractOwnerRepo, resolveConfigContent, installSkillRepos, parseArgs, addRepoToConfig, saveConfigFile } from "../lib/install.js";
 
 describe("parseConfigYaml", () => {
   it("parses valid config YAML and returns repo list", () => {
@@ -225,5 +225,51 @@ describe("parseArgs", () => {
   it("returns null command for add without repo argument", () => {
     const result = parseArgs(["node", "myskills", "add"]);
     assert.equal(result.command, null);
+  });
+});
+
+describe("addRepoToConfig", () => {
+  it("appends a new repo entry to config YAML", () => {
+    const input = `repos:
+  - name: anthropics-skills
+    url: https://github.com/anthropics/skills
+`;
+    const result = addRepoToConfig(input, "someuser/somerepo");
+    const parsed = parseConfigYaml(result);
+    assert.equal(parsed.length, 2);
+    assert.equal(parsed[1].name, "someuser-somerepo");
+    assert.equal(parsed[1].url, "https://github.com/someuser/somerepo");
+  });
+
+  it("returns null when repo already exists in config", () => {
+    const input = `repos:
+  - name: anthropics-skills
+    url: https://github.com/anthropics/skills
+`;
+    const result = addRepoToConfig(input, "anthropics/skills");
+    assert.equal(result, null);
+  });
+
+  it("works with empty repos list", () => {
+    const input = `repos: []\n`;
+    const result = addRepoToConfig(input, "someuser/somerepo");
+    const parsed = parseConfigYaml(result);
+    assert.equal(parsed.length, 1);
+    assert.equal(parsed[0].name, "someuser-somerepo");
+    assert.equal(parsed[0].url, "https://github.com/someuser/somerepo");
+  });
+});
+
+describe("saveConfigFile", () => {
+  it("writes config content to skill-repos.yml in given directory", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "myskills-"));
+    const content = `repos:\n  - name: test\n    url: https://github.com/test/repo\n`;
+
+    await saveConfigFile(tmpDir, content);
+
+    const written = await fs.readFile(path.join(tmpDir, "skill-repos.yml"), "utf-8");
+    assert.equal(written, content);
+
+    await fs.rm(tmpDir, { recursive: true });
   });
 });
