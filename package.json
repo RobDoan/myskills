@@ -1,12 +1,18 @@
 {
-  "name": "myskills",
+  "name": "@quydoan/myskills",
   "version": "1.0.0",
-  "private": true,
   "type": "module",
   "bin": {
     "myskills": "bin/myskills.js"
   },
   "description": "Personal agentskills.io skills collection with upstream tracking",
+  "files": [
+    "bin/",
+    "lib/"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "validate": "node scripts/validate.js",
     "check-upstream": "node scripts/check-upstream.js",
