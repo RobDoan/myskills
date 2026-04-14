@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { parseConfigYaml, extractOwnerRepo, resolveConfigContent, installSkillRepos, parseArgs, buildAddArgs } from "../lib/install.js";
+import { parseConfigYaml, extractOwnerRepo, resolveConfigContent, installSkillRepos, parseArgs, buildAddArgs, resolveActiveScopes } from "../lib/install.js";
 
 describe("parseConfigYaml", () => {
   it("parses scoped config and returns scope map", () => {
@@ -277,6 +277,43 @@ describe("buildAddArgs", () => {
   it("does not append --skill when skills array is empty", () => {
     const args = buildAddArgs("owner/repo", { skills: [] });
     assert.deepEqual(args, ["skills", "add", "-p", "owner/repo"]);
+  });
+});
+
+describe("resolveActiveScopes", () => {
+  const scopeMap = {
+    default: [{ url: "anthropics/skills", skills: ["pr-review"] }],
+    frontend: [{ url: "anthropics/skills", skills: ["frontend-design"] }],
+    backend: [{ url: "some/repo", skills: ["api-builder"] }],
+  };
+
+  it("returns all scope keys when scopes is null", () => {
+    const result = resolveActiveScopes(scopeMap, null);
+    assert.deepEqual(result.sort(), ["backend", "default", "frontend"]);
+  });
+
+  it("returns default plus requested scopes", () => {
+    const result = resolveActiveScopes(scopeMap, ["frontend"]);
+    assert.deepEqual(result.sort(), ["default", "frontend"]);
+  });
+
+  it("deduplicates when default is explicitly requested", () => {
+    const result = resolveActiveScopes(scopeMap, ["default", "frontend"]);
+    assert.deepEqual(result.sort(), ["default", "frontend"]);
+  });
+
+  it("throws on unknown scope", () => {
+    assert.throws(
+      () => resolveActiveScopes(scopeMap, ["mobile"]),
+      /Unknown scope\(s\): mobile\. Available: default, frontend, backend/
+    );
+  });
+
+  it("lists multiple unknown scopes in error", () => {
+    assert.throws(
+      () => resolveActiveScopes(scopeMap, ["mobile", "devops"]),
+      /Unknown scope\(s\): mobile, devops/
+    );
   });
 });
 
