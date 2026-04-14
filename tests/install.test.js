@@ -117,96 +117,187 @@ describe("resolveConfigContent", () => {
 });
 
 describe("installSkillRepos", () => {
-  it("runs npx skills add for each repo then RobDoan/myskills", async () => {
+  const scopeMap = {
+    default: [
+      { url: "anthropics/skills", skills: ["pr-review", "commit"] },
+    ],
+    frontend: [
+      { url: "anthropics/skills", skills: ["frontend-design"] },
+      { url: "vercel-labs/agent-skills", skills: ["react-transitions"] },
+    ],
+  };
+
+  it("installs all scopes when scopes is null", async () => {
     const calls = [];
-    const mockExec = async (cmd, args) => {
-      calls.push({ cmd, args });
-    };
+    const mockExec = async (cmd, args) => calls.push({ cmd, args });
 
-    const repos = [
-      { name: "anthropics-skills", url: "https://github.com/anthropics/skills" },
-      { name: "vercel-agent-skills", url: "https://github.com/vercel-labs/agent-skills" },
-    ];
+    const result = await installSkillRepos(scopeMap, {
+      global: false,
+      scopes: null,
+      execFn: mockExec,
+    });
 
-    const result = await installSkillRepos(repos, { global: false, execFn: mockExec });
-
-    assert.equal(calls.length, 3);
-    assert.deepEqual(calls[0].args, ["skills", "add", "-p", "anthropics/skills"]);
-    assert.deepEqual(calls[1].args, ["skills", "add", "-p", "vercel-labs/agent-skills"]);
-    assert.deepEqual(calls[2].args, ["skills", "add", "-p", "RobDoan/myskills"]);
+    // Self-repo first (not in config, so no --skill filter)
+    assert.deepEqual(calls[0].args, ["skills", "add", "-p", "RobDoan/myskills"]);
+    // Then other repos with merged skills
+    assert.deepEqual(calls[1].args, [
+      "skills", "add", "-p", "anthropics/skills",
+      "--skill", "pr-review", "commit", "frontend-design",
+    ]);
+    assert.deepEqual(calls[2].args, [
+      "skills", "add", "-p", "vercel-labs/agent-skills",
+      "--skill", "react-transitions",
+    ]);
     assert.equal(result.installed, 3);
     assert.equal(result.failed, 0);
   });
 
-  it("passes -g flag when global is true", async () => {
+  it("installs default + requested scope", async () => {
     const calls = [];
-    const mockExec = async (cmd, args) => {
-      calls.push({ cmd, args });
+    const mockExec = async (cmd, args) => calls.push({ cmd, args });
+
+    await installSkillRepos(scopeMap, {
+      global: false,
+      scopes: ["frontend"],
+      execFn: mockExec,
+    });
+
+    assert.deepEqual(calls[0].args, ["skills", "add", "-p", "RobDoan/myskills"]);
+    assert.deepEqual(calls[1].args, [
+      "skills", "add", "-p", "anthropics/skills",
+      "--skill", "pr-review", "commit", "frontend-design",
+    ]);
+    assert.deepEqual(calls[2].args, [
+      "skills", "add", "-p", "vercel-labs/agent-skills",
+      "--skill", "react-transitions",
+    ]);
+  });
+
+  it("installs only default when scope has no extra entries", async () => {
+    const calls = [];
+    const mockExec = async (cmd, args) => calls.push({ cmd, args });
+
+    const minimalMap = {
+      default: [{ url: "anthropics/skills", skills: ["pr-review"] }],
+      frontend: [],
     };
 
-    const repos = [
-      { name: "anthropics-skills", url: "https://github.com/anthropics/skills" },
-    ];
+    await installSkillRepos(minimalMap, {
+      global: false,
+      scopes: ["frontend"],
+      execFn: mockExec,
+    });
 
-    await installSkillRepos(repos, { global: true, execFn: mockExec });
+    assert.equal(calls.length, 2); // self-repo + anthropics/skills
+    assert.deepEqual(calls[1].args, [
+      "skills", "add", "-p", "anthropics/skills",
+      "--skill", "pr-review",
+    ]);
+  });
 
-    assert.deepEqual(calls[0].args, ["skills", "add", "-g", "anthropics/skills"]);
-    assert.deepEqual(calls[1].args, ["skills", "add", "-g", "RobDoan/myskills"]);
+  it("passes -g flag when global is true", async () => {
+    const calls = [];
+    const mockExec = async (cmd, args) => calls.push({ cmd, args });
+
+    await installSkillRepos(scopeMap, {
+      global: true,
+      scopes: null,
+      execFn: mockExec,
+    });
+
+    assert.deepEqual(calls[0].args, ["skills", "add", "-g", "RobDoan/myskills"]);
+    assert.deepEqual(calls[1].args[2], "-g");
+  });
+
+  it("throws on unknown scope", async () => {
+    const mockExec = async () => {};
+    await assert.rejects(
+      () => installSkillRepos(scopeMap, { scopes: ["mobile"], execFn: mockExec }),
+      /Unknown scope\(s\): mobile/
+    );
+  });
+
+  it("filters self-repo skills when self-repo is in active scopes", async () => {
+    const calls = [];
+    const mockExec = async (cmd, args) => calls.push({ cmd, args });
+
+    const mapWithSelf = {
+      default: [
+        { url: "RobDoan/myskills", skills: ["brainstorming"] },
+        { url: "anthropics/skills", skills: ["pr-review"] },
+      ],
+    };
+
+    await installSkillRepos(mapWithSelf, {
+      global: false,
+      scopes: null,
+      execFn: mockExec,
+    });
+
+    // Self-repo installed first WITH skill filter
+    assert.deepEqual(calls[0].args, [
+      "skills", "add", "-p", "RobDoan/myskills",
+      "--skill", "brainstorming",
+    ]);
+    // Other repo after
+    assert.deepEqual(calls[1].args, [
+      "skills", "add", "-p", "anthropics/skills",
+      "--skill", "pr-review",
+    ]);
+  });
+
+  it("merges self-repo skills across scopes", async () => {
+    const calls = [];
+    const mockExec = async (cmd, args) => calls.push({ cmd, args });
+
+    const mapWithSelf = {
+      default: [{ url: "RobDoan/myskills", skills: ["brainstorming"] }],
+      frontend: [{ url: "RobDoan/myskills", skills: ["frontend-design"] }],
+    };
+
+    await installSkillRepos(mapWithSelf, {
+      global: false,
+      scopes: null,
+      execFn: mockExec,
+    });
+
+    assert.deepEqual(calls[0].args, [
+      "skills", "add", "-p", "RobDoan/myskills",
+      "--skill", "brainstorming", "frontend-design",
+    ]);
   });
 
   it("continues after a failed install and reports failure", async () => {
     const calls = [];
     const mockExec = async (cmd, args) => {
       calls.push({ cmd, args });
-      if (args.includes("anthropics/skills")) {
-        throw new Error("install failed");
-      }
+      if (args.includes("anthropics/skills")) throw new Error("fail");
     };
 
-    const repos = [
-      { name: "anthropics-skills", url: "https://github.com/anthropics/skills" },
-      { name: "vercel-agent-skills", url: "https://github.com/vercel-labs/agent-skills" },
-    ];
+    const result = await installSkillRepos(scopeMap, {
+      global: false,
+      scopes: null,
+      execFn: mockExec,
+    });
 
-    const result = await installSkillRepos(repos, { global: false, execFn: mockExec });
-
-    assert.equal(calls.length, 3);
-    assert.equal(result.installed, 2);
+    assert.equal(result.installed, 2); // self-repo + vercel
     assert.equal(result.failed, 1);
     assert.deepEqual(result.failures, ["anthropics/skills"]);
   });
-});
 
-describe("installSkillRepos logging", () => {
   it("logs each repo being installed", async () => {
     const logs = [];
     const mockExec = async () => {};
-    const mockLog = (msg) => logs.push(msg);
 
-    const repos = [
-      { name: "anthropics-skills", url: "https://github.com/anthropics/skills" },
-    ];
+    await installSkillRepos(scopeMap, {
+      global: false,
+      scopes: null,
+      execFn: mockExec,
+      log: (msg) => logs.push(msg),
+    });
 
-    await installSkillRepos(repos, { global: false, execFn: mockExec, log: mockLog });
-
-    assert.ok(logs.some((l) => l.includes("anthropics/skills")));
     assert.ok(logs.some((l) => l.includes("RobDoan/myskills")));
-  });
-
-  it("logs failure for failed repo", async () => {
-    const logs = [];
-    const mockExec = async (cmd, args) => {
-      if (args.includes("anthropics/skills")) throw new Error("fail");
-    };
-    const mockLog = (msg) => logs.push(msg);
-
-    const repos = [
-      { name: "anthropics-skills", url: "https://github.com/anthropics/skills" },
-    ];
-
-    await installSkillRepos(repos, { global: false, execFn: mockExec, log: mockLog });
-
-    assert.ok(logs.some((l) => l.includes("Failed") && l.includes("anthropics/skills")));
+    assert.ok(logs.some((l) => l.includes("anthropics/skills")));
   });
 });
 
@@ -356,35 +447,3 @@ describe("collectRepoEntries", () => {
   });
 });
 
-describe("installSkillRepos with skills", () => {
-  it("passes --skill args when repo has skills array", async () => {
-    const calls = [];
-    const mockExec = async (cmd, args) => {
-      calls.push({ cmd, args });
-    };
-
-    const repos = [
-      { name: "anthropics-skills", url: "https://github.com/anthropics/skills", skills: ["pr-review", "commit"] },
-    ];
-
-    await installSkillRepos(repos, { global: false, execFn: mockExec });
-
-    assert.deepEqual(calls[0].args, ["skills", "add", "-p", "anthropics/skills", "--skill", "pr-review", "commit"]);
-    assert.deepEqual(calls[1].args, ["skills", "add", "-p", "RobDoan/myskills"]);
-  });
-
-  it("does not pass --skill when repo has no skills array", async () => {
-    const calls = [];
-    const mockExec = async (cmd, args) => {
-      calls.push({ cmd, args });
-    };
-
-    const repos = [
-      { name: "anthropics-skills", url: "https://github.com/anthropics/skills" },
-    ];
-
-    await installSkillRepos(repos, { global: false, execFn: mockExec });
-
-    assert.deepEqual(calls[0].args, ["skills", "add", "-p", "anthropics/skills"]);
-  });
-});
