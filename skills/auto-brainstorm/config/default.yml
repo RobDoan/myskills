@@ -1,0 +1,56 @@
+# Auto-Brainstorm Agent Configuration
+# Copy to .claude/auto-brainstorm.yml to customize
+
+classifier:
+  model: haiku
+  confidence_threshold: 0.7
+  max_consecutive_rejections: 3
+
+session:
+  brief_path: .claude/auto-brainstorm-brief.md
+  state_dir: /tmp
+  cleanup_on_end: true
+
+agents:
+  answerer:
+    description: >
+      Answers clarifying questions about user intent, goals,
+      constraints, and preferences. Active during early
+      brainstorming exploration.
+    order: 1
+    handler: sdk
+    model: opus
+    prompt: prompts/answerer.md
+    max_turns: 1
+
+  design-critic:
+    description: >
+      Evaluates design approaches, trade-offs, and architecture
+      decisions. Approves or critiques design sections. Active
+      after clarifying questions, before spec is written.
+    order: 2
+    handler: sdk
+    model: sonnet
+    prompt: prompts/design-critic.md
+    max_turns: 1
+
+  spec-reviewer:
+    description: >
+      Validates written spec for completeness, consistency,
+      clarity, and scope. Active after spec document is written.
+    order: 3
+    handler: sdk
+    model: haiku
+    prompt: prompts/spec-reviewer.md
+    max_turns: 1
+
+handler_defaults:
+  sdk:
+    max_turns: 1
+  webhook:
+    method: POST
+    timeout: 30000
+    headers:
+      Content-Type: application/json
+  command:
+    timeout: 10000
