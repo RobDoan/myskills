@@ -1,0 +1,7 @@
+{
+  "name": "auto-brainstorm",
+  "description": "Auto-answers brainstorming questions with specialized AI agents",
+  "version": "1.0.0",
+  "skills": "../",
+  "hooks": "../hooks/hooks-cursor.json"
+}

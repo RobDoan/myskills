@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "command": "./hooks/run-hook.cmd auto-answer"
+      }
+    ]
+  }
+}
