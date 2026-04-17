@@ -103,14 +103,19 @@ async function orchestrateAgent(agentName, agentConfig, question, brief, state, 
   // Load prompt content (for SDK handler)
   let promptContent = '';
   if (agentConfig.prompt) {
-    const promptPath = resolvePromptPath(agentConfig.prompt, pluginRoot);
-    promptContent = fs.readFileSync(promptPath, 'utf8');
+    try {
+      const promptPath = resolvePromptPath(agentConfig.prompt, pluginRoot);
+      promptContent = fs.readFileSync(promptPath, 'utf8');
 
-    // Inject response-format if referenced
-    const responseFormatPath = resolvePromptPath('prompts/response-format.md', pluginRoot);
-    if (fs.existsSync(responseFormatPath)) {
-      const responseFormat = fs.readFileSync(responseFormatPath, 'utf8');
-      promptContent = promptContent.replace('{{response-format}}', responseFormat);
+      // Inject response-format if referenced
+      const responseFormatPath = resolvePromptPath('prompts/response-format.md', pluginRoot);
+      if (fs.existsSync(responseFormatPath)) {
+        const responseFormat = fs.readFileSync(responseFormatPath, 'utf8');
+        promptContent = promptContent.replace('{{response-format}}', responseFormat);
+      }
+    } catch (err) {
+      logger.log(`prompt load error: ${err.message}`);
+      return { action: 'escalate', reason: `Prompt load error: ${err.message}` };
     }
   }
 
@@ -123,6 +128,8 @@ async function orchestrateAgent(agentName, agentConfig, question, brief, state, 
     logger.log(`${agentName} (${agentConfig.model}) → ${answer.length} chars, ${duration}s`);
   } catch (err) {
     logger.log(`${agentName} handler error: ${err.message}`);
+    state.recordRejection();
+    state.save();
     return { action: 'escalate', reason: `Agent error: ${err.message}` };
   }
 
@@ -135,8 +142,7 @@ async function orchestrateAgent(agentName, agentConfig, question, brief, state, 
 }
 
 // CLI entry point — runs when invoked by hook
-const isMain = !process.argv[1] || process.argv[1] === new URL(import.meta.url).pathname
-  || process.argv[1].endsWith('auto-answer.mjs');
+const isMain = process.argv[1] === new URL(import.meta.url).pathname;
 
 if (isMain && process.stdin.isTTY === undefined) {
   // Read hook payload from stdin
