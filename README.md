@@ -17,18 +17,6 @@ npx @quydoan/myskills install        # project-level (-p)
 npx @quydoan/myskills install -g     # global
 ```
 
-### Add a new skill repo
-
-```bash
-npx @quydoan/myskills add owner/repo
-```
-
-This will:
-1. Download `skill-repos.yml` (if no local copy exists)
-2. Install all existing tracked repos
-3. Install the new repo
-4. Append it to your local `skill-repos.yml`
-
 ## Add a New Skill
 
 1. Create a directory under `skills/` with your skill name:
