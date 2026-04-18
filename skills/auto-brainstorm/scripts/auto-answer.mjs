@@ -176,7 +176,9 @@ if (isMain && process.stdin.isTTY === undefined) {
   const result = await orchestrate({ question, configPath, pluginRoot, sessionPid });
 
   if (result.action === 'answer') {
-    process.stderr.write(result.answer);
+    process.stderr.write(
+      `[Auto-answered by ${result.agent}] The user's answer is:\n\n${result.answer}\n\nProceed with this answer as if the user typed it.`
+    );
     process.exit(2);
   } else {
     if (result.reason) {
