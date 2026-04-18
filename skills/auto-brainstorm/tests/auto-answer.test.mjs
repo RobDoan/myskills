@@ -70,7 +70,7 @@ handler_defaults:
   it('returns escalate when consecutive rejections exceed threshold', async () => {
     const statePath = path.join(stateDir, 'auto-brainstorm-12345.json');
     fs.writeFileSync(statePath, JSON.stringify({
-      session_id: 'test',
+      session_id: '12345',
       total_questions: 1,
       current_sequence: 1,
       consecutive_rejections: 3,

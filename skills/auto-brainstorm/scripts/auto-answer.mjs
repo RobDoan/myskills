@@ -1,10 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { loadConfig, resolvePromptPath } from './config.mjs';
 import { SessionState } from './state.mjs';
 import { Logger } from './logger.mjs';
 import { buildClassifierPrompt, parseClassifierResponse, classify } from './classifier.mjs';
 import { getHandler } from './handlers/index.mjs';
+
+function resolveProjectDir() {
+  // Claude Code sets this env var for hooks
+  if (process.env.CLAUDE_PROJECT_DIR) return process.env.CLAUDE_PROJECT_DIR;
+  // Fallback: git root
+  try {
+    return execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
+  } catch {
+    return process.cwd();
+  }
+}
 
 export async function orchestrate({ question, configPath, pluginRoot, sessionPid }) {
   const logPath = path.join('/tmp', `auto-brainstorm-${sessionPid}.log`);
@@ -22,9 +34,10 @@ export async function orchestrate({ question, configPath, pluginRoot, sessionPid
 
   // Load brief
   const briefPath = config.session?.brief_path || '.claude/auto-brainstorm-brief.md';
+  const projectDir = resolveProjectDir();
   const resolvedBriefPath = path.isAbsolute(briefPath)
     ? briefPath
-    : path.join(process.cwd(), briefPath);
+    : path.join(projectDir, briefPath);
 
   if (!fs.existsSync(resolvedBriefPath)) {
     logger.log('no brief file found');
@@ -35,7 +48,7 @@ export async function orchestrate({ question, configPath, pluginRoot, sessionPid
   // Load state
   const stateDir = config.session?.state_dir || '/tmp';
   const statePath = path.join(stateDir, `auto-brainstorm-${sessionPid}.json`);
-  const state = new SessionState(statePath);
+  const state = new SessionState(statePath, sessionPid);
 
   // Check escalation before doing work
   const maxRejections = config.classifier?.max_consecutive_rejections || 3;
@@ -166,12 +179,11 @@ if (isMain && process.stdin.isTTY === undefined) {
 
   const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT
     || path.resolve(new URL('.', import.meta.url).pathname, '..');
-  const configPath = path.join(
-    process.env.HOME || process.env.USERPROFILE || '',
-    '.claude',
-    'auto-brainstorm.yml'
-  );
-  const sessionPid = process.ppid?.toString() || process.pid.toString();
+  const projectDir = resolveProjectDir();
+  const configPath = path.join(projectDir, '.claude', 'auto-brainstorm.yml');
+  const sessionPid = process.env.CLAUDE_SESSION_ID
+    || process.ppid?.toString()
+    || process.pid.toString();
 
   const result = await orchestrate({ question, configPath, pluginRoot, sessionPid });
 
