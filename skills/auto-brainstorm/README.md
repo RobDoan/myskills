@@ -6,18 +6,19 @@ You only get asked directly if an agent fails to satisfy a question after 3 atte
 
 ## How It Works
 
-```
+```text
 Superpowers asks a question (AskUserQuestion)
        │
        ▼
-PostToolUse hook fires → auto-answer.mjs
+PreToolUse hook fires → auto-answer.mjs
        │
        ├─ Classifies question (Haiku, cheap/fast)
        ├─ Routes to the right agent (answerer / design-critic / spec-reviewer)
-       ├─ Agent generates a human-like response using your design brief
-       ├─ Answer injected back into Claude's context (exit code 2)
+       ├─ Agent generates a reply (via hcom → Gemini, or Claude SDK)
+       ├─ answer-mapper maps the reply to an AskUserQuestion option label
+       ├─ Emits hookSpecificOutput JSON → Claude sees the tool as succeeded
        │
-       └─ If rejected 3 times → you get asked directly (exit code 0)
+       └─ If unmatched 3 times or any error → you get asked directly
 ```
 
 ## Install

@@ -208,6 +208,17 @@ if (isMain && process.stdin.isTTY === undefined) {
     const { answers, unmatched } = buildAnswersMap(questions, result.answer);
 
     if (unmatched.length > 0) {
+      // Record as rejection so the 3-strikes escalation advances.
+      try {
+        const cfg = loadConfig(configPath, path.join(pluginRoot, 'config', 'default.yml'));
+        const stateDir = cfg.session?.state_dir || '/tmp';
+        const statePath = path.join(stateDir, `auto-brainstorm-${sessionPid}.json`);
+        const state = new SessionState(statePath, sessionPid);
+        state.recordRejection();
+        state.save();
+      } catch {
+        /* best effort; never make things worse than vanilla */
+      }
       process.stderr.write(
         `auto-brainstorm: could not map answer for: ${unmatched.join(', ')}\n`
       );

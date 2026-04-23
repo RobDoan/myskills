@@ -54,12 +54,12 @@ Then:
 
 ## How It Works
 
-The plugin hooks into `AskUserQuestion` (PostToolUse). When superpowers asks a question:
+The plugin hooks into `AskUserQuestion` (PreToolUse). When superpowers asks a question:
 
-1. A cheap classifier (Haiku) determines which agent should answer
-2. The selected agent generates a human-like response using the design brief
-3. The answer is injected back as if you typed it
-4. If the answer is rejected 3 times, you get asked directly
+1. A cheap classifier (Haiku) picks which agent should answer
+2. The selected agent generates a reply (via hcom → Gemini by default, or Claude SDK)
+3. The reply is mapped to an option label and emitted as `hookSpecificOutput` JSON so Claude sees the tool as succeeded
+4. If the reply is unparseable or any failure occurs 3 times, you get asked directly
 
 ## Configuration
 
