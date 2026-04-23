@@ -8,6 +8,11 @@ import { buildClassifierPrompt, parseClassifierResponse, classify } from './clas
 import { getHandler } from './handlers/index.mjs';
 import { buildAnswersMap } from './answer-mapper.mjs';
 
+/**
+ * Resolve the user's project root directory.
+ * Prefers the CLAUDE_PROJECT_DIR env var (set by Claude Code hooks), falls
+ * back to the enclosing git repo root, and finally to the current cwd.
+ */
 function resolveProjectDir() {
   // Claude Code sets this env var for hooks
   if (process.env.CLAUDE_PROJECT_DIR) return process.env.CLAUDE_PROJECT_DIR;
@@ -19,6 +24,19 @@ function resolveProjectDir() {
   }
 }
 
+/**
+ * Top-level orchestrator for auto-answering an AskUserQuestion prompt.
+ * Loads config + design brief + session state, classifies the question to pick
+ * a persona agent, and delegates to `orchestrateAgent` to produce an answer.
+ * Returns either `{ action: 'answer', answer, agent }` on success or
+ * `{ action: 'escalate', reason }` to let the question fall back to the user.
+ *
+ * @param {object} params
+ * @param {string} params.question      The raw user-facing question text.
+ * @param {string} params.configPath    Path to the project's auto-brainstorm.yml override.
+ * @param {string} params.pluginRoot    Root dir of the auto-brainstorm plugin (for defaults/prompts).
+ * @param {string} params.sessionPid    Stable session identifier used to key the state file.
+ */
 export async function orchestrate({ question, configPath, pluginRoot, sessionPid }) {
   const logPath = path.join('/tmp', `auto-brainstorm-${sessionPid}.log`);
   const logger = new Logger(logPath);
@@ -111,6 +129,13 @@ export async function orchestrate({ question, configPath, pluginRoot, sessionPid
   return orchestrateAgent(agentName, agentConfig, question, brief, state, logger, pluginRoot);
 }
 
+/**
+ * Run a single persona agent end-to-end: load its prompt (injecting the shared
+ * response-format template), dispatch to its handler with the question + brief,
+ * and record the outcome in session state. Handler errors are caught and
+ * converted into an `escalate` result (also counted as a rejection) so the
+ * pipeline fails open to the human instead of crashing the hook.
+ */
 async function orchestrateAgent(agentName, agentConfig, question, brief, state, logger, pluginRoot) {
   const handler = getHandler(agentConfig.handler);
 
