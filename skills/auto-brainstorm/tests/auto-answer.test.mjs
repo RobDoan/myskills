@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { orchestrate } from '../scripts/auto-answer.mjs';
 
 describe('orchestrate', () => {
@@ -85,5 +86,63 @@ handler_defaults:
     });
     assert.equal(result.action, 'escalate');
     assert.ok(result.reason.includes('3'));
+  });
+});
+
+describe('auto-answer CLI — hook response format', () => {
+  let tmpDir;
+  let briefPath;
+  let configPath;
+  let promptsDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'auto-brainstorm-cli-'));
+    briefPath = path.join(tmpDir, 'brief.md');
+    configPath = path.join(tmpDir, 'config.yml');
+    promptsDir = path.join(tmpDir, 'prompts');
+    fs.mkdirSync(promptsDir);
+    fs.writeFileSync(briefPath, '## Intent\nTest brief.\n');
+    fs.writeFileSync(configPath, `
+classifier:
+  model: haiku
+  confidence_threshold: 0.7
+  max_consecutive_rejections: 3
+session:
+  brief_path: ${briefPath}
+  state_dir: ${tmpDir}
+agents:
+  answerer:
+    description: "clarifying questions"
+    order: 1
+    handler: sdk
+    model: haiku
+    prompt: prompts/answerer.md
+    max_turns: 1
+handler_defaults:
+  sdk:
+    max_turns: 1
+`);
+    fs.writeFileSync(path.join(promptsDir, 'answerer.md'), 'answerer');
+    fs.writeFileSync(path.join(promptsDir, 'classifier.md'), 'classifier');
+  });
+
+  afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+
+  it('on escalate (no brief), writes reason to stderr and exits 0', () => {
+    fs.unlinkSync(briefPath);
+    const scriptPath = path.resolve('scripts/auto-answer.mjs');
+    const payload = {
+      tool_input: {
+        questions: [{ question: 'Q?', options: [{ label: 'A' }, { label: 'B' }] }],
+      },
+    };
+    const res = spawnSync(process.execPath, [scriptPath], {
+      input: JSON.stringify(payload),
+      env: { ...process.env, CLAUDE_PLUGIN_ROOT: tmpDir, CLAUDE_PROJECT_DIR: tmpDir },
+      encoding: 'utf8',
+    });
+    assert.equal(res.status, 0);
+    assert.ok(res.stderr.length > 0, 'expected a reason on stderr');
+    assert.equal(res.stdout.trim(), '', 'expected no stdout on escalate');
   });
 });

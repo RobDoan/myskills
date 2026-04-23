@@ -6,6 +6,7 @@ import { SessionState } from './state.mjs';
 import { Logger } from './logger.mjs';
 import { buildClassifierPrompt, parseClassifierResponse, classify } from './classifier.mjs';
 import { getHandler } from './handlers/index.mjs';
+import { buildAnswersMap } from './answer-mapper.mjs';
 
 function resolveProjectDir() {
   // Claude Code sets this env var for hooks
@@ -158,7 +159,6 @@ async function orchestrateAgent(agentName, agentConfig, question, brief, state, 
 const isMain = process.argv[1] === new URL(import.meta.url).pathname;
 
 if (isMain && process.stdin.isTTY === undefined) {
-  // Read hook payload from stdin
   let input = '';
   process.stdin.setEncoding('utf8');
   for await (const chunk of process.stdin) {
@@ -169,11 +169,17 @@ if (isMain && process.stdin.isTTY === undefined) {
   try {
     payload = JSON.parse(input);
   } catch {
-    process.exit(0); // can't parse payload, let user answer
+    process.exit(0); // unparseable payload: let tool run normally
   }
 
-  const question = payload?.tool_input?.question || payload?.tool_input?.text || '';
-  if (!question) {
+  // AskUserQuestion payload shape: tool_input.questions = [{question, options, ...}]
+  // Older/alternate shapes fall back to tool_input.question / tool_input.text as a string.
+  const questions = payload?.tool_input?.questions;
+  const questionText = Array.isArray(questions) && questions.length > 0
+    ? questions.map((q) => q.question).join('\n---\n')
+    : (payload?.tool_input?.question || payload?.tool_input?.text || '');
+
+  if (!questionText) {
     process.exit(0);
   }
 
@@ -185,17 +191,50 @@ if (isMain && process.stdin.isTTY === undefined) {
     || process.ppid?.toString()
     || process.pid.toString();
 
-  const result = await orchestrate({ question, configPath, pluginRoot, sessionPid });
-
-  if (result.action === 'answer') {
-    process.stderr.write(
-      `[Auto-answered by ${result.agent}] The user's answer is:\n\n${result.answer}\n\nProceed with this answer as if the user typed it.`
-    );
-    process.exit(2);
-  } else {
-    if (result.reason) {
-      process.stderr.write(result.reason);
-    }
+  let result;
+  try {
+    result = await orchestrate({
+      question: questionText,
+      configPath,
+      pluginRoot,
+      sessionPid,
+    });
+  } catch (err) {
+    process.stderr.write(`auto-brainstorm unexpected error: ${err.message}\n`);
     process.exit(0);
   }
+
+  if (result.action === 'answer' && Array.isArray(questions) && questions.length > 0) {
+    const { answers, unmatched } = buildAnswersMap(questions, result.answer);
+
+    if (unmatched.length > 0) {
+      process.stderr.write(
+        `auto-brainstorm: could not map answer for: ${unmatched.join(', ')}\n`
+      );
+      process.exit(0);
+    }
+
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'allow',
+        updatedInput: { questions, answers },
+      },
+    }));
+    process.exit(0);
+  }
+
+  if (result.action === 'answer') {
+    // Non-AskUserQuestion shape (legacy text): we cannot synthesize a typed
+    // tool result reliably, so escalate cleanly and let the tool run.
+    process.stderr.write(
+      `auto-brainstorm: ${result.agent} suggested: ${result.answer}\n` +
+      `Tool call will run normally.\n`
+    );
+    process.exit(0);
+  }
+
+  // escalate
+  if (result.reason) process.stderr.write(result.reason);
+  process.exit(0);
 }
