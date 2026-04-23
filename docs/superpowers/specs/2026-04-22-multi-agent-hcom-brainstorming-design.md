@@ -28,7 +28,7 @@ The existing `auto-brainstorm` plugin intercepts `AskUserQuestion` calls during 
 ## Decisions locked in during brainstorming
 
 | Axis | Decision |
-|---|---|
+| --- | --- |
 | Shape | New multi-agent brainstorming via hcom (not a plain SDK backend swap) |
 | Persona | Multiple personas, different per brainstorming step |
 | Gemini instances | One long-lived Gemini, persona switched per message via envelope |
@@ -39,7 +39,7 @@ The existing `auto-brainstorm` plugin intercepts `AskUserQuestion` calls during 
 
 ## Architecture
 
-```
+```text
 auto-brainstorm/
 ├── SKILL.md                              [modified — add hcom prereq line]
 ├── README.md                             [modified — document hcom handler]
@@ -74,17 +74,18 @@ auto-brainstorm/
 5. Handler sends an envelope to `@gemini` via `hcom send --intent request`, then blocks on `hcom listen --from gemini --reply-to <id> --timeout 60 --json`.
 6. Handler returns reply text.
 7. `answer-mapper.mjs` converts reply text into `{questionText: optionLabel}` map.
-8. Orchestrator writes JSON to stdout:
+8. Orchestrator writes JSON to stdout, then exits 0:
+
    ```json
    {
      "hookSpecificOutput": {
        "hookEventName": "PreToolUse",
        "permissionDecision": "allow",
-       "updatedInput": { "questions": [...], "answers": {...} }
+       "updatedInput": { "questions": [], "answers": {} }
      }
    }
    ```
-   exit 0.
+
 9. Claude Code sees the tool as successful with those answers baked in and continues the next step.
 
 ## Hook response format change
@@ -162,7 +163,7 @@ export async function handleHcom(question, brief, agentConfig, promptContent) {
 
 **Envelope format (sent to Gemini):**
 
-```
+```text
 ## PERSONA
 <contents of gemini-<persona>.md>
 
@@ -275,7 +276,7 @@ The plugin's `SKILL.md` gets a one-line prereq added to "Before You Start":
 Every failure escalates cleanly to the human. The plugin never makes things worse than vanilla brainstorming.
 
 | Failure | Behavior |
-|---|---|
+| --- | --- |
 | `hcom gemini` not running | Escalate first attempt. Reason: *"Target `gemini` is not running. Run `hcom gemini --name gemini` and retry."* User answers that one question; next question auto-answers once gemini is up. |
 | `hcom send` non-zero exit | Handler throws → orchestrator catches → escalate with stderr message. |
 | `hcom listen` timeout (60s default) | Escalate. Increment rejection counter. 3 strikes → hard escalate as per existing logic. |
