@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "auto-brainstorm": {
+      "source": "RobDoan/myskills",
+      "sourceType": "github",
+      "computedHash": "fc32c369ad014a4daab7ab78e561e6b564b80670fcba4e5d841267bba8e4d8c6"
+    },
     "doc-coauthoring": {
       "source": "anthropics/skills",
       "sourceType": "github",

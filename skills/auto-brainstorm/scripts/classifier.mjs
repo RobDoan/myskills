@@ -42,6 +42,11 @@ export function parseClassifierResponse(text) {
 }
 
 export async function classify(question, agents, history, classifierConfig) {
+  if (process.env.AUTO_BRAINSTORM_TEST_CLASSIFIER) {
+    try { return JSON.parse(process.env.AUTO_BRAINSTORM_TEST_CLASSIFIER); }
+    catch { /* fall through to real classifier */ }
+  }
+
   const { query } = await import('@anthropic-ai/claude-code');
 
   const systemPromptPath = classifierConfig.promptPath;
