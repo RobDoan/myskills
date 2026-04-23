@@ -9,6 +9,20 @@ Automates the human-in-the-loop steps of superpowers brainstorming by dispatchin
 
 ## Before You Start
 
+### Prerequisite: start Gemini on hcom
+
+The default configuration routes all brainstorming questions to Gemini via
+[hcom](https://github.com/hcom-dev/hcom). Before starting:
+
+```bash
+hcom gemini --name gemini
+```
+
+Leave that terminal running. The plugin checks on the first question and
+escalates to you if `gemini` is not running. To use Claude SDK (Opus/Sonnet)
+instead, edit `.claude/auto-brainstorm.yml` and change each `handler: hcom`
+to `handler: sdk` (see Configuration).
+
 **Collect a design brief** from the user before brainstorming begins. This brief is critical — it's what the auto-answer agents use to represent the user's intent.
 
 Ask the user:
