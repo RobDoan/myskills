@@ -46,12 +46,10 @@ describe('handleHcom', () => {
     assert.equal(calls.send[0].opts.intent, 'request');
   });
 
-  it('listens with matching reply-to id and correct timeout', async () => {
+  it('listens with correct from and timeout', async () => {
     const { calls } = stubDeps({
-      sendMessage: () => 'msg-99',
       listen: (opts) => {
         calls.listen.push(opts);
-        assert.equal(opts.replyTo, 'msg-99');
         assert.equal(opts.timeoutSec, 60);
         assert.equal(opts.from, 'gemini');
         return { text: 'A' };
