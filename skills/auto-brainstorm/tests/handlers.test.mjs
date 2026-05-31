@@ -18,6 +18,11 @@ describe('getHandler', () => {
     assert.equal(typeof handler, 'function');
   });
 
+  it('returns hcom handler for hcom type', () => {
+    const handler = getHandler('hcom');
+    assert.equal(typeof handler, 'function');
+  });
+
   it('throws for unknown handler type', () => {
     assert.throws(() => getHandler('unknown'), /Unknown handler type/);
   });

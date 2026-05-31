@@ -1,24 +1,34 @@
 import fs from 'node:fs';
 
 export class SessionState {
-  constructor(filePath) {
+  constructor(filePath, sessionId) {
     this.filePath = filePath;
+    this.sessionId = sessionId || `session-${Date.now()}`;
     this.data = this._load();
   }
 
   _load() {
     try {
       const raw = fs.readFileSync(this.filePath, 'utf8');
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      // Reset if state is from a different session
+      if (parsed.session_id !== this.sessionId) {
+        return this._fresh();
+      }
+      return parsed;
     } catch {
-      return {
-        session_id: `session-${Date.now()}`,
-        total_questions: 0,
-        current_sequence: 0,
-        consecutive_rejections: 0,
-        history: [],
-      };
+      return this._fresh();
     }
+  }
+
+  _fresh() {
+    return {
+      session_id: this.sessionId,
+      total_questions: 0,
+      current_sequence: 0,
+      consecutive_rejections: 0,
+      history: [],
+    };
   }
 
   recordNewQuestion() {

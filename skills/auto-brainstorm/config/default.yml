@@ -11,6 +11,12 @@ session:
   state_dir: /tmp
   cleanup_on_end: true
 
+# hcom-backed agents send/receive via hcom CLI. Requires `hcom <tool> --name <target>`
+# to be running before the brainstorming session starts.
+hcom:
+  target: gemini
+  timeout_ms: 60000
+
 agents:
   answerer:
     description: >
@@ -18,10 +24,9 @@ agents:
       constraints, and preferences. Active during early
       brainstorming exploration.
     order: 1
-    handler: sdk
-    model: opus
-    prompt: prompts/answerer.md
-    max_turns: 1
+    handler: hcom
+    persona: user-stand-in
+    prompt: prompts/gemini-user.md
 
   design-critic:
     description: >
@@ -29,20 +34,18 @@ agents:
       decisions. Approves or critiques design sections. Active
       after clarifying questions, before spec is written.
     order: 2
-    handler: sdk
-    model: sonnet
-    prompt: prompts/design-critic.md
-    max_turns: 1
+    handler: hcom
+    persona: critic
+    prompt: prompts/gemini-critic.md
 
   spec-reviewer:
     description: >
       Validates written spec for completeness, consistency,
       clarity, and scope. Active after spec document is written.
     order: 3
-    handler: sdk
-    model: haiku
-    prompt: prompts/spec-reviewer.md
-    max_turns: 1
+    handler: hcom
+    persona: spec-reviewer
+    prompt: prompts/gemini-spec-reviewer.md
 
 handler_defaults:
   sdk:
@@ -54,3 +57,5 @@ handler_defaults:
       Content-Type: application/json
   command:
     timeout: 10000
+  hcom:
+    timeout_ms: 60000

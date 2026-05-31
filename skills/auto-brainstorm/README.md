@@ -6,18 +6,19 @@ You only get asked directly if an agent fails to satisfy a question after 3 atte
 
 ## How It Works
 
-```
+```text
 Superpowers asks a question (AskUserQuestion)
        │
        ▼
-PostToolUse hook fires → auto-answer.mjs
+PreToolUse hook fires → auto-answer.mjs
        │
        ├─ Classifies question (Haiku, cheap/fast)
        ├─ Routes to the right agent (answerer / design-critic / spec-reviewer)
-       ├─ Agent generates a human-like response using your design brief
-       ├─ Answer injected back into Claude's context (exit code 2)
+       ├─ Agent generates a reply (via hcom → Gemini, or Claude SDK)
+       ├─ answer-mapper maps the reply to an AskUserQuestion option label
+       ├─ Emits hookSpecificOutput JSON → Claude sees the tool as succeeded
        │
-       └─ If rejected 3 times → you get asked directly (exit code 0)
+       └─ If unmatched 3 times or any error → you get asked directly
 ```
 
 ## Install
@@ -38,13 +39,13 @@ Or manually: clone this repo and symlink `skills/auto-brainstorm/` into your Cla
 
 ## Default Agents
 
-| Agent | Model | Role |
-|-------|-------|------|
-| **answerer** | Opus | Clarifying questions — goals, constraints, preferences |
-| **design-critic** | Sonnet | Design approaches, trade-offs, section approval |
-| **spec-reviewer** | Haiku | Spec completeness, consistency, clarity |
+| Agent | Backend | Persona | Role |
+|-------|---------|---------|------|
+| **answerer** | hcom → Gemini | user-stand-in | Clarifying questions — goals, constraints, preferences |
+| **design-critic** | hcom → Gemini | critic | Design approaches, trade-offs, section approval |
+| **spec-reviewer** | hcom → Gemini | spec-reviewer | Spec completeness, consistency, clarity |
 
-A Haiku-based **classifier** routes each question to the right agent based on context and session history.
+A Haiku-based **classifier** routes each question to the right agent based on context and session history. All three roles are served by a single long-lived Gemini agent over [hcom](https://github.com/hcom-dev/hcom); persona is tagged per message. To fall back to local Claude SDK, switch `handler: hcom` → `handler: sdk` in `.claude/auto-brainstorm.yml`.
 
 ## Configuration
 
@@ -65,6 +66,30 @@ agents:
     prompt: prompts/answerer.md
     max_turns: 1
 ```
+
+### Using hcom (multi-agent via Gemini)
+
+The default backend. Start a Gemini instance on hcom in a separate terminal before running brainstorming:
+
+```bash
+hcom gemini --name gemini
+```
+
+Config options:
+
+```yaml
+hcom:
+  target: gemini        # hcom agent name
+  timeout_ms: 60000     # listen timeout per question
+
+agents:
+  answerer:
+    handler: hcom
+    persona: user-stand-in
+    prompt: prompts/gemini-user.md
+```
+
+The `persona` field selects which prompt file is loaded; the handler sends an envelope with the persona prompt, the design brief, and the question over hcom, then blocks on a reply up to `timeout_ms`.
 
 ### Adding a New Agent
 
@@ -115,7 +140,8 @@ The command receives the question and brief via `AUTO_BRAINSTORM_QUESTION` and `
 
 | Handler | Use When | How It Works |
 |---------|----------|--------------|
-| `sdk` | AI agent answering | Calls Claude Code SDK `query()`, inherits your auth |
+| `hcom` | Multi-agent via Gemini (default) | Shells out to `hcom send` / `hcom listen` against a pre-launched target |
+| `sdk` | AI agent answering via Claude SDK | Calls Claude Code SDK `query()`, inherits your auth |
 | `webhook` | External service (n8n, Make, custom API) | POSTs `{question, brief}` to a URL |
 | `command` | Local script | Runs a shell command, reads stdout |
 

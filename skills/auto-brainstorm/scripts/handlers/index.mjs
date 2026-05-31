@@ -1,11 +1,13 @@
 import { handleSdk } from './sdk.mjs';
 import { handleWebhook } from './webhook.mjs';
 import { handleCommand } from './command.mjs';
+import { handleHcom } from './hcom.mjs';
 
 const handlers = {
   sdk: handleSdk,
   webhook: handleWebhook,
   command: handleCommand,
+  hcom: handleHcom,
 };
 
 export function getHandler(type) {

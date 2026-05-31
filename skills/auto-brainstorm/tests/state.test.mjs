@@ -38,9 +38,24 @@ describe('SessionState', () => {
         ]
       };
       fs.writeFileSync(statePath, JSON.stringify(existing));
-      const state = new SessionState(statePath);
+      const state = new SessionState(statePath, 'test-123');
       assert.equal(state.data.total_questions, 3);
       assert.equal(state.data.history.length, 1);
+    });
+
+    it('resets state when session ID does not match', () => {
+      const existing = {
+        session_id: 'old-session',
+        total_questions: 5,
+        current_sequence: 5,
+        consecutive_rejections: 3,
+        history: []
+      };
+      fs.writeFileSync(statePath, JSON.stringify(existing));
+      const state = new SessionState(statePath, 'new-session');
+      assert.equal(state.data.total_questions, 0);
+      assert.equal(state.data.consecutive_rejections, 0);
+      assert.equal(state.data.session_id, 'new-session');
     });
 
     it('creates fresh state when file is corrupted', () => {

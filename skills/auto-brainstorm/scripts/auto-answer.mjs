@@ -1,10 +1,23 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { loadConfig, resolvePromptPath } from './config.mjs';
 import { SessionState } from './state.mjs';
 import { Logger } from './logger.mjs';
 import { buildClassifierPrompt, parseClassifierResponse, classify } from './classifier.mjs';
 import { getHandler } from './handlers/index.mjs';
+import { buildAnswersMap } from './answer-mapper.mjs';
+
+function resolveProjectDir() {
+  // Claude Code sets this env var for hooks
+  if (process.env.CLAUDE_PROJECT_DIR) return process.env.CLAUDE_PROJECT_DIR;
+  // Fallback: git root
+  try {
+    return execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
+  } catch {
+    return process.cwd();
+  }
+}
 
 export async function orchestrate({ question, configPath, pluginRoot, sessionPid }) {
   const logPath = path.join('/tmp', `auto-brainstorm-${sessionPid}.log`);
@@ -22,9 +35,10 @@ export async function orchestrate({ question, configPath, pluginRoot, sessionPid
 
   // Load brief
   const briefPath = config.session?.brief_path || '.claude/auto-brainstorm-brief.md';
+  const projectDir = resolveProjectDir();
   const resolvedBriefPath = path.isAbsolute(briefPath)
     ? briefPath
-    : path.join(process.cwd(), briefPath);
+    : path.join(projectDir, briefPath);
 
   if (!fs.existsSync(resolvedBriefPath)) {
     logger.log('no brief file found');
@@ -35,7 +49,7 @@ export async function orchestrate({ question, configPath, pluginRoot, sessionPid
   // Load state
   const stateDir = config.session?.state_dir || '/tmp';
   const statePath = path.join(stateDir, `auto-brainstorm-${sessionPid}.json`);
-  const state = new SessionState(statePath);
+  const state = new SessionState(statePath, sessionPid);
 
   // Check escalation before doing work
   const maxRejections = config.classifier?.max_consecutive_rejections || 3;
@@ -145,7 +159,6 @@ async function orchestrateAgent(agentName, agentConfig, question, brief, state, 
 const isMain = process.argv[1] === new URL(import.meta.url).pathname;
 
 if (isMain && process.stdin.isTTY === undefined) {
-  // Read hook payload from stdin
   let input = '';
   process.stdin.setEncoding('utf8');
   for await (const chunk of process.stdin) {
@@ -156,32 +169,83 @@ if (isMain && process.stdin.isTTY === undefined) {
   try {
     payload = JSON.parse(input);
   } catch {
-    process.exit(0); // can't parse payload, let user answer
+    process.exit(0); // unparseable payload: let tool run normally
   }
 
-  const question = payload?.tool_input?.question || payload?.tool_input?.text || '';
-  if (!question) {
+  // AskUserQuestion payload shape: tool_input.questions = [{question, options, ...}]
+  // Older/alternate shapes fall back to tool_input.question / tool_input.text as a string.
+  const questions = payload?.tool_input?.questions;
+  const questionText = Array.isArray(questions) && questions.length > 0
+    ? questions.map((q) => q.question).join('\n---\n')
+    : (payload?.tool_input?.question || payload?.tool_input?.text || '');
+
+  if (!questionText) {
     process.exit(0);
   }
 
   const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT
     || path.resolve(new URL('.', import.meta.url).pathname, '..');
-  const configPath = path.join(
-    process.env.HOME || process.env.USERPROFILE || '',
-    '.claude',
-    'auto-brainstorm.yml'
-  );
-  const sessionPid = process.ppid?.toString() || process.pid.toString();
+  const projectDir = resolveProjectDir();
+  const configPath = path.join(projectDir, '.claude', 'auto-brainstorm.yml');
+  const sessionPid = process.env.CLAUDE_SESSION_ID
+    || process.ppid?.toString()
+    || process.pid.toString();
 
-  const result = await orchestrate({ question, configPath, pluginRoot, sessionPid });
-
-  if (result.action === 'answer') {
-    process.stderr.write(result.answer);
-    process.exit(2);
-  } else {
-    if (result.reason) {
-      process.stderr.write(result.reason);
-    }
+  let result;
+  try {
+    result = await orchestrate({
+      question: questionText,
+      configPath,
+      pluginRoot,
+      sessionPid,
+    });
+  } catch (err) {
+    process.stderr.write(`auto-brainstorm unexpected error: ${err.message}\n`);
     process.exit(0);
   }
+
+  if (result.action === 'answer' && Array.isArray(questions) && questions.length > 0) {
+    const { answers, unmatched } = buildAnswersMap(questions, result.answer);
+
+    if (unmatched.length > 0) {
+      // Record as rejection so the 3-strikes escalation advances.
+      try {
+        const cfg = loadConfig(configPath, path.join(pluginRoot, 'config', 'default.yml'));
+        const stateDir = cfg.session?.state_dir || '/tmp';
+        const statePath = path.join(stateDir, `auto-brainstorm-${sessionPid}.json`);
+        const state = new SessionState(statePath, sessionPid);
+        state.recordRejection();
+        state.save();
+      } catch {
+        /* best effort; never make things worse than vanilla */
+      }
+      process.stderr.write(
+        `auto-brainstorm: could not map answer for: ${unmatched.join(', ')}\n`
+      );
+      process.exit(0);
+    }
+
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'allow',
+        updatedInput: { questions, answers },
+      },
+    }));
+    process.exit(0);
+  }
+
+  if (result.action === 'answer') {
+    // Non-AskUserQuestion shape (legacy text): we cannot synthesize a typed
+    // tool result reliably, so escalate cleanly and let the tool run.
+    process.stderr.write(
+      `auto-brainstorm: ${result.agent} suggested: ${result.answer}\n` +
+      `Tool call will run normally.\n`
+    );
+    process.exit(0);
+  }
+
+  // escalate
+  if (result.reason) process.stderr.write(result.reason);
+  process.exit(0);
 }
